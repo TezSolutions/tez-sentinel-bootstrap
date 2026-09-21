@@ -292,7 +292,54 @@ cd "$REPO_DIR"
 docker compose up -d
 ok "docker compose up -d complete."
 
-# ─── 8. Final summary ─────────────────────────────────────────────────────────
+# ─── 8. Confirm HA trusted-proxies trial (HA 2026.9+) ────────────────────────
+# HA migrates the YAML http: block (trusted_proxies etc.) into
+# .storage/http as a *pending* trial on first boot. The trial must be
+# confirmed by a request arriving THROUGH a trusted proxy within 5 minutes
+# of boot, otherwise it is recorded error=not_promoted, never applied
+# again, and reverse-proxy access (tez-api-server / Caddy / sentinel app)
+# dies with "HTTP integration is not set-up for reverse proxies".
+# On a fresh node there is no proxied traffic yet, so we promote the
+# pending config to stable deterministically instead of hoping.
+echo ""
+echo -e "${BOLD}[Step 8/8] Confirming HA trusted-proxies config...${RESET}"
+
+HA_URL="http://localhost:8123"
+echo "Waiting for Home Assistant to come up..."
+HA_UP=false
+for attempt in $(seq 1 60); do
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HA_URL" || true)"
+    if [[ "$code" == "200" || "$code" == "401" ]]; then
+        HA_UP=true
+        break
+    fi
+    sleep 5
+done
+if [[ "$HA_UP" != "true" ]]; then
+    warn "HA did not respond on ${HA_URL} within 5 minutes — skipping"
+    warn "trusted-proxies confirm. Run it manually (see TezSentinel skills)."
+else
+    docker stop homeassistant >/dev/null
+    python3 - <<'PYEOF'
+import json, os
+p = os.path.expanduser("~/TezSentinel/HA/config/.storage/http")
+d = json.load(open(p))
+pend = d["data"].get("pending")
+if pend:
+    pend.pop("error", None)
+    pend.pop("error_message", None)
+    d["data"]["stable"] = pend
+    d["data"]["pending"] = None
+    json.dump(d, open(p, "w"))
+    print("Promoted pending HTTP config to stable (trusted_proxies active).")
+else:
+    print("No pending HTTP config — stable already active.")
+PYEOF
+    docker start homeassistant >/dev/null
+    ok "HA restarted with trusted-proxies config confirmed as stable."
+fi
+
+# ─── 9. Final summary ─────────────────────────────────────────────────────────
 HOST_IP="$(hostname -I | awk '{print $1}')"
 
 echo ""
