@@ -70,9 +70,9 @@ Once the stack is up, complete these three setup steps:
 
 1. **Edit the Frigate config** — open `frigate/config.yml` and configure your camera RTSP streams, set the `genai` `base_url` for AI detection, and add your notification email address.
 
-2. **Complete Home Assistant onboarding + install HACS integrations** — navigate to `http://<node-ip>:8123`, finish the HA setup wizard, then install the required HACS integrations for the Tez Sentinel stack.
+2. **Complete Home Assistant onboarding + install HACS integrations** — navigate to `http://<node-ip>:8123`, finish the HA setup wizard, then install the remaining HACS integrations (Frigate, Advanced Camera Card).
 
-3. **Configure the Sentinel Link integration** — inside Home Assistant, set up the Sentinel Link integration to connect HA with the Frigate NVR and enable event-driven automations.
+3. **Configure the Sentinel Link integration** — the integration is already deployed to `HA/config/custom_components/sentinel_link/` by the bootstrap (step 6 of 8). Inside Home Assistant, just set it up via Settings → Integrations.
 
 ---
 

@@ -55,7 +55,7 @@ ${BOLD}${CYAN}══════════════════════
 "
 
 # ─── 2. Prerequisites ─────────────────────────────────────────────────────────
-echo -e "${BOLD}[Step 1/7] Checking prerequisites...${RESET}"
+echo -e "${BOLD}[Step 1/8] Checking prerequisites...${RESET}"
 
 if [[ $EUID -ne 0 ]]; then
     # Check if we can sudo
@@ -107,7 +107,7 @@ fi
 
 # ─── 3. Deploy key setup ──────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}[Step 2/7] Setting up SSH deploy key...${RESET}"
+echo -e "${BOLD}[Step 2/8] Setting up SSH deploy key...${RESET}"
 
 DEPLOY_KEY_PATH="${HOME}/.ssh/tez_sentinel_deploy"
 DEPLOY_KEY_PUB="${DEPLOY_KEY_PATH}.pub"
@@ -201,7 +201,7 @@ fi
 
 # ─── 4. Clone repo ────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}[Step 3/7] Cloning TezSentinel repository...${RESET}"
+echo -e "${BOLD}[Step 3/8] Cloning TezSentinel repository...${RESET}"
 
 REPO_DIR="${HOME}/TezSentinel"
 REPO_URL="git@github.com:TezSolutions/TezSentinel.git"
@@ -234,7 +234,7 @@ fi
 
 # ─── 5. .env setup ────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}[Step 4/7] Configuring environment (.env)...${RESET}"
+echo -e "${BOLD}[Step 4/8] Configuring environment (.env)...${RESET}"
 echo "Press Enter to accept the default shown in [brackets]."
 echo ""
 
@@ -251,7 +251,7 @@ ok ".env written to ${REPO_DIR}/.env"
 
 # ─── 6. Frigate config reset ──────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}[Step 5/7] Resetting Frigate configuration...${RESET}"
+echo -e "${BOLD}[Step 5/8] Resetting Frigate configuration...${RESET}"
 
 cd "$REPO_DIR"
 
@@ -265,9 +265,28 @@ else
     warn "Skipping Frigate config reset — you can run it manually later."
 fi
 
-# ─── 7. Docker Compose up ─────────────────────────────────────────────────────
+# ─── 7. Sentinel Link integration ────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}[Step 6/7] Starting TezSentinel stack with Docker Compose...${RESET}"
+echo -e "${BOLD}[Step 6/8] Installing Sentinel Link integration...${RESET}"
+
+SENTINEL_LINK_DIR="${HOME}/sentinel-link"
+HA_CC_DIR="${REPO_DIR}/HA/config/custom_components/sentinel_link"
+
+if [[ -d "$SENTINEL_LINK_DIR/.git" ]]; then
+    git -C "$SENTINEL_LINK_DIR" pull --ff-only || warn "Could not pull sentinel-link — using existing copy."
+else
+    git clone git@github.com:TezSolutions/sentinel-link.git "$SENTINEL_LINK_DIR"
+    ok "Cloned TezSolutions/sentinel-link."
+fi
+
+mkdir -p "$HA_CC_DIR"
+rsync -a --exclude='__pycache__' "$SENTINEL_LINK_DIR/custom_components/sentinel_link/" "$HA_CC_DIR/"
+LINK_VERSION="$(python3 -c "import json;print(json.load(open('${HA_CC_DIR}/manifest.json'))['version'])" 2>/dev/null || echo unknown)"
+ok "Sentinel Link v${LINK_VERSION} deployed to ${HA_CC_DIR}"
+
+# ─── 8. Docker Compose up ────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}[Step 7/8] Starting TezSentinel stack with Docker Compose...${RESET}"
 
 cd "$REPO_DIR"
 docker compose up -d
@@ -294,11 +313,11 @@ echo -e "${BOLD}${GREEN}══════════════════�
        Then: docker compose restart frigate
 
     2. Open Home Assistant and complete onboarding
-       Then install HACS integrations:
-       - Sentinel Link
+       Then install remaining HACS integrations:
        - Frigate
        - Advanced Camera Card
 
     3. Configure Sentinel Link via Settings → Integrations
+       (already deployed by bootstrap step 6 — just set it up)
 ════════════════════════════════════════════════════════════${RESET}
 "
